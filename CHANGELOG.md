@@ -1,3 +1,9 @@
+## 0.1.1
+
+- Added dartdoc comments across the public API (`models.dart`): every model
+  class, enum, constructor and key field is now documented (≈99% coverage).
+- No functional changes.
+
 ## 0.1.0
 
 - Initial release.
