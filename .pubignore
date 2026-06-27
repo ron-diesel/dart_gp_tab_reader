@@ -1,0 +1,4 @@
+# Tests and their binary Guitar Pro fixtures are only needed for CI, not by
+# consumers of the package. They stay in the git repository but are kept out of
+# the published archive to keep it small.
+test/

@@ -1,0 +1,16 @@
+name: Publish to pub.dev
+
+# Publishing is triggered by pushing a version tag like `v0.1.0`.
+# pub.dev verifies the run via OIDC (no credentials/secrets are stored here);
+# enable it under the package's "Automated publishing" admin page and set the
+# repository to `ron-diesel/dart_gp_tab_reader` with tag pattern `v{{version}}`.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  publish:
+    permissions:
+      id-token: write # required for OIDC authentication with pub.dev
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1

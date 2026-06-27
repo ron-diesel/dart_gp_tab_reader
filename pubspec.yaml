@@ -1,0 +1,25 @@
+name: dart_gp_tab_reader
+description: >-
+  Pure-Dart, read-only reader for Guitar Pro tablature files (GP3, GP4, GP5).
+  Parses the binary format into a Song > Track > Measure > Voice > Beat > Note tree.
+version: 0.1.0
+repository: https://github.com/ron-diesel/dart_gp_tab_reader
+issue_tracker: https://github.com/ron-diesel/dart_gp_tab_reader/issues
+
+topics:
+  - guitar
+  - tablature
+  - music
+  - parser
+
+# This package is a derivative work of PyGuitarPro and is therefore distributed
+# under the GNU LGPL-3.0 license (see LICENSE). An application may depend on it
+# as a normal (replaceable) package dependency without the LGPL extending to the
+# application's own proprietary code.
+
+environment:
+  sdk: '^3.8.0'
+
+dev_dependencies:
+  lints: '>=3.0.0 <7.0.0'
+  test: ^1.25.0
