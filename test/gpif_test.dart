@@ -207,7 +207,10 @@ void main() {
       expect(song.tracks, hasLength(2));
       expect(guitar.name, 'Guitar');
       // Model strings are numbered 1..N from the highest-pitched string.
-      expect([for (final s in guitar.strings) s.value], [64, 59, 55, 50, 45, 40]);
+      expect(
+        [for (final s in guitar.strings) s.value],
+        [64, 59, 55, 50, 45, 40],
+      );
       expect(guitar.offset, 2); // capo
       expect(guitar.channel.instrument, 27); // first <Sound> program
       expect(guitar.channel.balance, 32); // 0.25 * 127
@@ -283,14 +286,21 @@ void main() {
     final bytes = Uint8List.fromList([...utf8.encode('BCFZ'), 0, 0, 0, 0]);
     expect(
       () => parseGp(bytes),
-      throwsA(isA<GpException>()
-          .having((e) => e.toString(), 'message', contains('BCFZ'))),
+      throwsA(
+        isA<GpException>().having(
+          (e) => e.toString(),
+          'message',
+          contains('BCFZ'),
+        ),
+      ),
     );
   });
 
   test('rejects a zip without score.gpif', () {
     final archive = Archive()..addFile(ArchiveFile.string('foo.txt', 'hi'));
-    expect(() => parseGp(ZipEncoder().encodeBytes(archive)),
-        throwsA(isA<GpException>()));
+    expect(
+      () => parseGp(ZipEncoder().encodeBytes(archive)),
+      throwsA(isA<GpException>()),
+    );
   });
 }

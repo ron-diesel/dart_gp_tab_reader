@@ -79,7 +79,11 @@ Uint8List buildBcfs(List<int> content) {
   // File entry at sector 1.
   final entry = ByteData.sublistView(data, _sector);
   entry.setUint32(0, 2, Endian.little); // entryType = file
-  data.setRange(_sector + 0x04, _sector + 0x04 + 10, ascii.encode('score.gpif'));
+  data.setRange(
+    _sector + 0x04,
+    _sector + 0x04 + 10,
+    ascii.encode('score.gpif'),
+  );
   entry.setUint32(0x8C, content.length, Endian.little); // fileSize
   entry.setUint32(0x94, 2, Endian.little); // data in sector 2, then 0-end
   data.setRange(2 * _sector, 2 * _sector + content.length, content);
@@ -187,8 +191,10 @@ void main() {
 
   group('parseGp on synthetic .gpx', () {
     final gpifBytes = utf8.encode(_gpif);
-    final bcfs = Uint8List.fromList(
-        [...ascii.encode('BCFS'), ...buildBcfs(gpifBytes)]);
+    final bcfs = Uint8List.fromList([
+      ...ascii.encode('BCFS'),
+      ...buildBcfs(gpifBytes),
+    ]);
     final bcfz = buildBcfz([...ascii.encode('BCFS'), ...buildBcfs(gpifBytes)]);
 
     for (final (label, bytes) in [('BCFS', bcfs), ('BCFZ', bcfz)]) {
@@ -199,8 +205,10 @@ void main() {
         expect(song.tracks, hasLength(2));
         // GP6-style track data: GeneralMidi program + track-level tuning.
         expect(song.tracks[0].channel.instrument, 29);
-        expect([for (final s in song.tracks[0].strings) s.value],
-            [64, 59, 55, 50, 45, 40]);
+        expect(
+          [for (final s in song.tracks[0].strings) s.value],
+          [64, 59, 55, 50, 45, 40],
+        );
         final note = song.tracks[0].measures[0].voices[0].beats[0].notes.single;
         expect(note.string, 4); // GPIF string 2 of 6 → model number 4
         expect(note.value, 3);

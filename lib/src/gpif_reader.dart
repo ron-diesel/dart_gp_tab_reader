@@ -80,7 +80,13 @@ class _Automation {
   final int reference; // tempo unit (see [_tempoUnitFactor])
   final String text; // CDATA value (sound id for `Sound` automations)
   const _Automation(
-      this.type, this.bar, this.ratio, this.value, this.reference, this.text);
+    this.type,
+    this.bar,
+    this.ratio,
+    this.value,
+    this.reference,
+    this.text,
+  );
 
   /// Tempo in quarter-note BPM (only meaningful for `Tempo` automations).
   double get quarterBpm =>
@@ -100,9 +106,11 @@ class _TrackInfo {
   int volume = 104; // 0-127, from the RSE channel strip when present
   int balance = 64; // 0-127, 64 = centre
   int staffCount = 1;
+
   /// GM drum keys of the track's percussion articulations, in document order;
   /// a note's `<InstrumentArticulation>` indexes into this list.
   List<int> articulations = const [];
+
   /// Sound id (`path;name;role`) → GM program, for `Sound` automations.
   Map<String, int> sounds = {};
   List<_Automation> automations = const [];
@@ -142,15 +150,18 @@ class _GpifReader {
     _indexPools();
 
     final masterAutomations = _readAutomations(
-        root.getElement('MasterTrack')?.getElement('Automations'));
+      root.getElement('MasterTrack')?.getElement('Automations'),
+    );
     final trackInfos = [
-      for (final t in root.getElement('Tracks')?.findElements('Track') ??
-          const <XmlElement>[])
+      for (final t
+          in root.getElement('Tracks')?.findElements('Track') ??
+              const <XmlElement>[])
         _readTrackInfo(t),
     ];
     final masterBars = [
-      for (final mb in root.getElement('MasterBars')?.findElements('MasterBar') ??
-          const <XmlElement>[])
+      for (final mb
+          in root.getElement('MasterBars')?.findElements('MasterBar') ??
+              const <XmlElement>[])
         _readMasterBar(mb),
     ];
 
@@ -166,9 +177,7 @@ class _GpifReader {
       }
     }
     // The song's base tempo is the automation at the very start (if any).
-    final initial = tempoByBar[0]
-        ?.where((a) => a.ratio == 0)
-        .toList();
+    final initial = tempoByBar[0]?.where((a) => a.ratio == 0).toList();
     if (initial != null && initial.isNotEmpty) {
       song.tempo = initial.first.quarterBpm.round();
     }
@@ -213,7 +222,8 @@ class _GpifReader {
   void _indexPools() {
     void index(String section, String child, Map<String, XmlElement> into) {
       for (final el
-          in root.getElement(section)?.findElements(child) ?? const <XmlElement>[]) {
+          in root.getElement(section)?.findElements(child) ??
+              const <XmlElement>[]) {
         final id = el.getAttribute('id');
         if (id != null) into[id] = el;
       }
@@ -223,8 +233,9 @@ class _GpifReader {
     index('Voices', 'Voice', _voiceById);
     index('Beats', 'Beat', _beatById);
     index('Notes', 'Note', _noteById);
-    for (final el in root.getElement('Rhythms')?.findElements('Rhythm') ??
-        const <XmlElement>[]) {
+    for (final el
+        in root.getElement('Rhythms')?.findElements('Rhythm') ??
+            const <XmlElement>[]) {
       final id = el.getAttribute('id');
       if (id != null) _rhythmById[id] = _rhythmFactory(el);
     }
@@ -251,18 +262,19 @@ class _GpifReader {
     final value = values[_text(el.getElement('NoteValue'))] ?? Duration.quarter;
     // The model only supports a single dot; a double dot is approximated.
     final dotted =
-        (int.tryParse(el.getElement('AugmentationDot')?.getAttribute('count') ??
-                '0') ??
+        (int.tryParse(
+              el.getElement('AugmentationDot')?.getAttribute('count') ?? '0',
+            ) ??
             0) >=
         1;
     final tuplet = el.getElement('PrimaryTuplet');
     final enters = int.tryParse(tuplet?.getAttribute('num') ?? '') ?? 1;
     final times = int.tryParse(tuplet?.getAttribute('den') ?? '') ?? 1;
     return () => Duration(
-          value: value,
-          isDotted: dotted,
-          tuplet: Tuplet(enters: enters, times: times),
-        );
+      value: value,
+      isDotted: dotted,
+      tuplet: Tuplet(enters: enters, times: times),
+    );
   }
 
   List<_Automation> _readAutomations(XmlElement? automations) {
@@ -279,20 +291,23 @@ class _GpifReader {
         final first = parts.isNotEmpty ? double.tryParse(parts[0]) : null;
         if (first != null) {
           number = first;
-          reference =
-              parts.length > 1 ? (int.tryParse(parts[1]) ?? 2) : reference;
+          reference = parts.length > 1
+              ? (int.tryParse(parts[1]) ?? 2)
+              : reference;
         } else {
           text = raw; // CDATA sound id like "path;name;role"
         }
       }
-      result.add(_Automation(
-        _text(el.getElement('Type')),
-        int.tryParse(_text(el.getElement('Bar'))) ?? 0,
-        double.tryParse(_text(el.getElement('Position'))) ?? 0,
-        number,
-        reference,
-        text,
-      ));
+      result.add(
+        _Automation(
+          _text(el.getElement('Type')),
+          int.tryParse(_text(el.getElement('Bar'))) ?? 0,
+          double.tryParse(_text(el.getElement('Position'))) ?? 0,
+          number,
+          reference,
+          text,
+        ),
+      );
     }
     return result;
   }
@@ -307,8 +322,9 @@ class _GpifReader {
         case 'Tuning':
           if (info.tuning.isEmpty) {
             info.tuning = [
-              for (final p
-                  in _text(prop.getElement('Pitches')).split(RegExp(r'\s+')))
+              for (final p in _text(
+                prop.getElement('Pitches'),
+              ).split(RegExp(r'\s+')))
                 if (int.tryParse(p) != null) int.parse(p),
             ];
           }
@@ -323,12 +339,15 @@ class _GpifReader {
 
     // GM program: GP7/8 keeps it per <Sound>, GP6 under <GeneralMidi>.
     var firstSound = true;
-    for (final sound in el.getElement('Sounds')?.findElements('Sound') ??
-        const <XmlElement>[]) {
-      final program =
-          int.tryParse(_text(sound.getElement('MIDI')?.getElement('Program')));
+    for (final sound
+        in el.getElement('Sounds')?.findElements('Sound') ??
+            const <XmlElement>[]) {
+      final program = int.tryParse(
+        _text(sound.getElement('MIDI')?.getElement('Program')),
+      );
       if (program == null) continue;
-      final id = '${_text(sound.getElement('Path'))};'
+      final id =
+          '${_text(sound.getElement('Path'))};'
           '${_text(sound.getElement('Name'))};'
           '${_text(sound.getElement('Role'))}';
       info.sounds[id] = program;
@@ -342,18 +361,20 @@ class _GpifReader {
       if (firstSound) {
         info.program =
             int.tryParse(_text(generalMidi.getElement('Program'))) ??
-                info.program;
+            info.program;
       }
-      info.primaryChannel =
-          int.tryParse(_text(generalMidi.getElement('PrimaryChannel')));
+      info.primaryChannel = int.tryParse(
+        _text(generalMidi.getElement('PrimaryChannel')),
+      );
       if (generalMidi.getAttribute('table') == 'Percussion') {
         info.isPercussion = true;
       }
     }
     final connection = el.getElement('MidiConnection');
     if (connection != null) {
-      info.primaryChannel ??=
-          int.tryParse(_text(connection.getElement('PrimaryChannel')));
+      info.primaryChannel ??= int.tryParse(
+        _text(connection.getElement('PrimaryChannel')),
+      );
       info.port = int.tryParse(_text(connection.getElement('Port'))) ?? 0;
     }
 
@@ -373,11 +394,12 @@ class _GpifReader {
 
     // Mixer defaults from the RSE channel strip (floats 0..1; index 11 = pan,
     // 12 = volume — same slots alphaTab reads).
-    final parameters = _text(el
-        .getElement('RSE')
-        ?.getElement('ChannelStrip')
-        ?.getElement('Parameters'))
-        .split(RegExp(r'\s+'));
+    final parameters = _text(
+      el
+          .getElement('RSE')
+          ?.getElement('ChannelStrip')
+          ?.getElement('Parameters'),
+    ).split(RegExp(r'\s+'));
     if (parameters.length > 12) {
       final pan = double.tryParse(parameters[11]);
       final volume = double.tryParse(parameters[12]);
@@ -385,8 +407,7 @@ class _GpifReader {
       if (volume != null) info.volume = (volume * 127).round().clamp(0, 127);
     }
 
-    info.automations =
-        _readAutomations(el.getElement('Automations'));
+    info.automations = _readAutomations(el.getElement('Automations'));
     return info;
   }
 
@@ -404,7 +425,8 @@ class _GpifReader {
     if (repeat != null) {
       info.isRepeatOpen = repeat.getAttribute('start') == 'true';
       if (repeat.getAttribute('end') == 'true') {
-        info.repeatClose = int.tryParse(repeat.getAttribute('count') ?? '') ?? 2;
+        info.repeatClose =
+            int.tryParse(repeat.getAttribute('count') ?? '') ?? 2;
       }
     }
     final section = el.getElement('Section');
@@ -432,18 +454,20 @@ class _GpifReader {
     // Headers are shared across tracks; created here, timed later.
     for (var i = 0; i < masterBars.length; i++) {
       final mb = masterBars[i];
-      song.addMeasureHeader(MeasureHeader(
-        number: i + 1,
-        timeSignature: TimeSignature(
-          numerator: mb.numerator,
-          denominator: Duration(value: mb.denominator),
+      song.addMeasureHeader(
+        MeasureHeader(
+          number: i + 1,
+          timeSignature: TimeSignature(
+            numerator: mb.numerator,
+            denominator: Duration(value: mb.denominator),
+          ),
+          isRepeatOpen: mb.isRepeatOpen,
+          repeatClose: mb.repeatClose,
+          hasDoubleBar: mb.hasDoubleBar,
+          marker: mb.marker,
+          tripletFeel: mb.tripletFeel,
         ),
-        isRepeatOpen: mb.isRepeatOpen,
-        repeatClose: mb.repeatClose,
-        hasDoubleBar: mb.hasDoubleBar,
-        marker: mb.marker,
-        tripletFeel: mb.tripletFeel,
-      ));
+      );
     }
 
     // A master bar lists one bar id per *staff*, tracks in order; precompute
@@ -493,8 +517,9 @@ class _GpifReader {
           if (barIndex >= masterBars[mi].barIds.length) break;
           final bar = _barById[masterBars[mi].barIds[barIndex]];
           if (bar == null) continue;
-          for (final voiceId
-              in _text(bar.getElement('Voices')).split(RegExp(r'\s+'))) {
+          for (final voiceId in _text(
+            bar.getElement('Voices'),
+          ).split(RegExp(r'\s+'))) {
             final voiceEl = _voiceById[voiceId];
             if (voiceId == '-1' || voiceEl == null) continue;
             voices.add(_readVoice(voiceEl, measure, info));
@@ -531,8 +556,9 @@ class _GpifReader {
     );
 
     final velocity = _velocityOf(_text(el.getElement('Dynamic')));
-    for (final prop in el.getElement('Properties')?.findElements('Property') ??
-        const <XmlElement>[]) {
+    for (final prop
+        in el.getElement('Properties')?.findElements('Property') ??
+            const <XmlElement>[]) {
       switch (prop.getAttribute('name')) {
         case 'VibratoWTremBar':
           beat.effect.vibrato = true;
@@ -559,8 +585,7 @@ class _GpifReader {
     return beat;
   }
 
-  Note _readNote(
-      XmlElement el, Beat beat, _TrackInfo info, int velocity) {
+  Note _readNote(XmlElement el, Beat beat, _TrackInfo info, int velocity) {
     final note = Note(beat, type: NoteType.normal, velocity: velocity);
     int? gpifString;
     int? fret;
@@ -568,8 +593,9 @@ class _GpifReader {
     var element = -1;
     var variation = 0;
 
-    for (final prop in el.getElement('Properties')?.findElements('Property') ??
-        const <XmlElement>[]) {
+    for (final prop
+        in el.getElement('Properties')?.findElements('Property') ??
+            const <XmlElement>[]) {
       switch (prop.getAttribute('name')) {
         case 'String':
           gpifString = int.tryParse(_text(prop.getElement('String')));
@@ -590,8 +616,7 @@ class _GpifReader {
             beat.effect.slapEffect = SlapEffect.tapping;
           }
         case 'Slide':
-          final flags =
-              int.tryParse(_text(prop.getElement('Flags'))) ?? 0;
+          final flags = int.tryParse(_text(prop.getElement('Flags'))) ?? 0;
           note.effect.slides = _slidesFromFlags(flags);
         case 'Bended':
           if (prop.getElement('Enable') != null) {
@@ -610,8 +635,7 @@ class _GpifReader {
             ];
           }
         case 'HarmonicType':
-          note.effect.harmonic =
-              _harmonicOf(_text(prop.getElement('HType')));
+          note.effect.harmonic = _harmonicOf(_text(prop.getElement('HType')));
         // GP6 percussion: drum sound as an element/variation pair.
         case 'Element':
           element = int.tryParse(_text(prop.getElement('Element'))) ?? -1;
@@ -652,8 +676,7 @@ class _GpifReader {
     } else if (gpifString != null && info.tuning.isNotEmpty) {
       // GPIF numbers strings 0..N-1 lowest-first; the model 1..N highest-first.
       note.string = info.tuning.length - gpifString;
-      note.value = fret ??
-          (midi != null ? midi - info.tuning[gpifString] : 0);
+      note.value = fret ?? (midi != null ? midi - info.tuning[gpifString] : 0);
     } else {
       // No tablature staff (keys, etc.) — keep the raw MIDI pitch in `value`
       // with string 0, the convention consumers use for pitch-only notes.
@@ -666,15 +689,15 @@ class _GpifReader {
   /// Maps GPIF slide bit flags to the model's [SlideType]s (same bit layout
   /// alphaTab decodes: 1 shift, 2 legato, 4/8 out, 16/32 in, 64/128 pick).
   List<SlideType> _slidesFromFlags(int flags) => [
-        if (flags & 1 != 0) SlideType.shiftSlideTo,
-        if (flags & 2 != 0) SlideType.legatoSlideTo,
-        if (flags & 4 != 0) SlideType.outDownwards,
-        if (flags & 8 != 0) SlideType.outUpwards,
-        if (flags & 16 != 0) SlideType.intoFromBelow,
-        if (flags & 32 != 0) SlideType.intoFromAbove,
-        if (flags & 64 != 0) SlideType.outDownwards,
-        if (flags & 128 != 0) SlideType.outUpwards,
-      ];
+    if (flags & 1 != 0) SlideType.shiftSlideTo,
+    if (flags & 2 != 0) SlideType.legatoSlideTo,
+    if (flags & 4 != 0) SlideType.outDownwards,
+    if (flags & 8 != 0) SlideType.outUpwards,
+    if (flags & 16 != 0) SlideType.intoFromBelow,
+    if (flags & 32 != 0) SlideType.intoFromAbove,
+    if (flags & 64 != 0) SlideType.outDownwards,
+    if (flags & 128 != 0) SlideType.outUpwards,
+  ];
 
   /// GM drum keys for GP6 percussion element/variation pairs (rows =
   /// elements, columns = variations 0..2), derived from alphaTab's GP6
@@ -707,13 +730,13 @@ class _GpifReader {
   }
 
   HarmonicEffect? _harmonicOf(String type) => switch (type) {
-        'Natural' => const NaturalHarmonic(),
-        'Artificial' => const ArtificialHarmonic(),
-        'Tap' => const TappedHarmonic(),
-        'Pinch' => const PinchHarmonic(),
-        'Semi' || 'Feedback' => const SemiHarmonic(),
-        _ => null,
-      };
+    'Natural' => const NaturalHarmonic(),
+    'Artificial' => const ArtificialHarmonic(),
+    'Tap' => const TappedHarmonic(),
+    'Pinch' => const PinchHarmonic(),
+    'Semi' || 'Feedback' => const SemiHarmonic(),
+    _ => null,
+  };
 
   /// GPIF dynamic marks to MIDI velocity, on the same ppp..fff ladder the
   /// GP3-5 readers use.
@@ -782,7 +805,9 @@ class _GpifReader {
   /// track's beats (tempo is global in Guitar Pro), at the beat closest to the
   /// automation's position within its bar.
   void _attachTempoAutomations(
-      Map<int, List<_Automation>> tempoByBar, List<_MasterBarInfo> masterBars) {
+    Map<int, List<_Automation>> tempoByBar,
+    List<_MasterBarInfo> masterBars,
+  ) {
     if (song.tracks.isEmpty) return;
     tempoByBar.forEach((barIndex, automations) {
       for (final automation in automations) {
@@ -798,7 +823,9 @@ class _GpifReader {
   /// Attaches per-track `Sound` automations (mid-song program switches, e.g.
   /// clean → distortion) as [MixTableChange.instrument] events.
   void _attachSoundAutomations(
-      List<_TrackInfo> infos, List<_MasterBarInfo> masterBars) {
+    List<_TrackInfo> infos,
+    List<_MasterBarInfo> masterBars,
+  ) {
     for (var ti = 0; ti < infos.length && ti < song.tracks.length; ti++) {
       for (final automation in infos[ti].automations) {
         if (automation.type != 'Sound') continue;

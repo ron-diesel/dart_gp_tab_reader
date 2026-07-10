@@ -82,8 +82,9 @@ Uint8List decompressBcfz(Uint8List bytes) {
         if (sourcePosition < 0 || toRead < 0) {
           throw const GpException('corrupt BCFZ back-reference');
         }
-        append(Uint8List.sublistView(
-            flat, sourcePosition, sourcePosition + toRead));
+        append(
+          Uint8List.sublistView(flat, sourcePosition, sourcePosition + toRead),
+        );
       } else {
         final size = reader.readBitsReversed(2);
         append([for (var i = 0; i < size; i++) reader.readByte()]);
@@ -123,16 +124,18 @@ Map<String, Uint8List> bcfsFiles(Uint8List data) {
         if (sector == 0) break;
         final start = sector * sectorSize;
         if (start >= data.length) break;
-        final end =
-            start + sectorSize > data.length ? data.length : start + sectorSize;
+        final end = start + sectorSize > data.length
+            ? data.length
+            : start + sectorSize;
         content.add(Uint8List.sublistView(data, start, end));
         // The next entry sector comes after the last data sector.
         if (start > offset) offset = start;
         pointer += 4;
       }
       final bytes = content.takeBytes();
-      files[name] =
-          bytes.length > fileSize ? Uint8List.sublistView(bytes, 0, fileSize) : bytes;
+      files[name] = bytes.length > fileSize
+          ? Uint8List.sublistView(bytes, 0, fileSize)
+          : bytes;
     }
     offset += sectorSize;
   }
