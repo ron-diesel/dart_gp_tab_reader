@@ -565,6 +565,8 @@ class _GpifReader {
     int? gpifString;
     int? fret;
     int? midi;
+    var element = -1;
+    var variation = 0;
 
     for (final prop in el.getElement('Properties')?.findElements('Property') ??
         const <XmlElement>[]) {
@@ -610,6 +612,11 @@ class _GpifReader {
         case 'HarmonicType':
           note.effect.harmonic =
               _harmonicOf(_text(prop.getElement('HType')));
+        // GP6 percussion: drum sound as an element/variation pair.
+        case 'Element':
+          element = int.tryParse(_text(prop.getElement('Element'))) ?? -1;
+        case 'Variation':
+          variation = int.tryParse(_text(prop.getElement('Variation'))) ?? 0;
       }
     }
 
@@ -629,14 +636,19 @@ class _GpifReader {
     }
 
     if (info.isPercussion) {
-      // Percussion pitch: the articulation table maps the note's
-      // <InstrumentArticulation> index to a GM drum key.
+      // Percussion pitch: GP7/8 notes carry an <InstrumentArticulation> index
+      // into the track's articulation table; GP6 notes an element/variation
+      // pair. Either way the result is a GM drum key stored in `value`.
       final articulation =
           int.tryParse(_text(el.getElement('InstrumentArticulation'))) ?? -1;
       note.string = 0;
-      note.value = (articulation >= 0 && articulation < info.articulations.length)
-          ? info.articulations[articulation]
-          : (midi ?? fret ?? 0);
+      if (articulation >= 0 && articulation < info.articulations.length) {
+        note.value = info.articulations[articulation];
+      } else if (element >= 0) {
+        note.value = _gm(element, variation);
+      } else {
+        note.value = midi ?? fret ?? 0;
+      }
     } else if (gpifString != null && info.tuning.isNotEmpty) {
       // GPIF numbers strings 0..N-1 lowest-first; the model 1..N highest-first.
       note.string = info.tuning.length - gpifString;
@@ -663,6 +675,36 @@ class _GpifReader {
         if (flags & 64 != 0) SlideType.outDownwards,
         if (flags & 128 != 0) SlideType.outUpwards,
       ];
+
+  /// GM drum keys for GP6 percussion element/variation pairs (rows =
+  /// elements, columns = variations 0..2), derived from alphaTab's GP6
+  /// table with its extended articulation ids folded back to plain GM keys
+  /// (e.g. rim shot → snare 38, half hi-hat → open 46, ride bell → 53).
+  static const List<List<int>> _gp6DrumKeys = [
+    [35, 35, 35], // 0 kick (hit)
+    [38, 38, 37], // 1 snare (hit, rim shot, side stick)
+    [56, 56, 56], // 2 cowbell low (hit, tip)
+    [56, 56, 56], // 3 cowbell medium (hit, tip)
+    [56, 56, 56], // 4 cowbell high (hit, tip)
+    [43, 43, 43], // 5 tom very low
+    [45, 45, 45], // 6 tom low
+    [47, 47, 47], // 7 tom medium
+    [48, 48, 48], // 8 tom high
+    [50, 50, 50], // 9 tom very high
+    [42, 46, 46], // 10 hi-hat (closed, half, open)
+    [44, 44, 44], // 11 pedal hi-hat
+    [57, 57, 57], // 12 crash medium (hit, choke)
+    [49, 49, 49], // 13 crash high (hit, choke)
+    [55, 55, 55], // 14 splash (hit, choke)
+    [51, 51, 53], // 15 ride (middle, edge, bell)
+    [52, 52, 52], // 16 china (hit, choke)
+  ];
+
+  static int _gm(int element, int variation) {
+    if (element < 0 || element >= _gp6DrumKeys.length) return 38;
+    final row = _gp6DrumKeys[element];
+    return row[variation < 0 || variation >= row.length ? 0 : variation];
+  }
 
   HarmonicEffect? _harmonicOf(String type) => switch (type) {
         'Natural' => const NaturalHarmonic(),

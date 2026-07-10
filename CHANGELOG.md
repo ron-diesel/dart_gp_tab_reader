@@ -1,3 +1,12 @@
+## 0.3.0
+
+- **Guitar Pro 6 (`.gpx`) support.** `parseGp` now decodes the proprietary
+  BCFS/BCFZ container (`lib/src/gpx_reader.dart`, bit-level LZ decompressor +
+  sector filesystem, ported from alphaTab's `GpxFileSystem`) and feeds the
+  inner `score.gpif` to the GPIF reader. New export: `parseGpx`.
+- GPIF reader: GP6 percussion notes (`Element`/`Variation` properties) are
+  now mapped to GM drum keys, matching the GP7/8 articulation handling.
+
 ## 0.2.0
 
 - **Guitar Pro 7/8 (`.gp`) support.** `parseGp` now detects the zip-based `.gp`

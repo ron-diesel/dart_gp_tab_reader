@@ -278,12 +278,13 @@ void main() {
     expect(song.title, 'Test Song');
   });
 
-  test('rejects GP6 .gpx (BCFZ) with a clear error', () {
+  test('routes GP6 .gpx (BCFZ) magic to the gpx reader', () {
+    // An empty BCFZ payload decompresses to nothing → container error.
     final bytes = Uint8List.fromList([...utf8.encode('BCFZ'), 0, 0, 0, 0]);
     expect(
       () => parseGp(bytes),
       throwsA(isA<GpException>()
-          .having((e) => e.toString(), 'message', contains('gpx'))),
+          .having((e) => e.toString(), 'message', contains('BCFZ'))),
     );
   });
 
