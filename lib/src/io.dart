@@ -4,6 +4,7 @@ import 'cp1252.dart';
 import 'gp3_reader.dart';
 import 'gp4_reader.dart';
 import 'gp5_reader.dart';
+import 'gpif_reader.dart';
 import 'models.dart';
 
 /// Maps the 30-byte version string at the head of a GP file to its version
@@ -39,12 +40,24 @@ String _peekVersion(Uint8List data) {
   return decodeCp1252(data.sublist(1, 1 + size));
 }
 
-/// Parses a Guitar Pro (GP3/GP4/GP5) file from its raw [bytes] and returns the
-/// decoded [Song].
+/// Parses a Guitar Pro (GP3/GP4/GP5 binary or GP7/GP8 `.gp`) file from its
+/// raw [bytes] and returns the decoded [Song].
 ///
-/// Throws [GpException] for unsupported versions (including the zip-based
-/// GP6/GP7 `.gpx`/`.gp` formats) or malformed data.
+/// Throws [GpException] for unsupported versions (including the GP6 `.gpx`
+/// container) or malformed data.
 Song parseGp(Uint8List bytes) {
+  // GP7/GP8 `.gp` files are zip archives holding a `score.gpif` XML score.
+  if (looksLikeZip(bytes)) return parseGp7(bytes);
+  // GP6 `.gpx` uses the proprietary BCFS/BCFZ container, which we don't
+  // decode — fail with a recognisable message instead of a version error.
+  if (bytes.length >= 4 &&
+      bytes[0] == 0x42 && // B
+      bytes[1] == 0x43 && // C
+      bytes[2] == 0x46 && // F
+      (bytes[3] == 0x53 || bytes[3] == 0x5A)) {
+    throw const GpException(
+        'Guitar Pro 6 .gpx files are not supported; re-save as .gp or .gp5');
+  }
   final versionString = _peekVersion(bytes);
   final info = _gpFiles[versionString];
   if (info == null) {

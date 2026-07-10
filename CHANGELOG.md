@@ -1,3 +1,21 @@
+## 0.2.0
+
+- **Guitar Pro 7/8 (`.gp`) support.** `parseGp` now detects the zip-based `.gp`
+  container by its bytes and parses the `Content/score.gpif` GPIF XML score
+  into the same `Song` tree as the GP3–5 readers. Covered: metadata, tempo
+  (incl. mid-song tempo automations, mapped to `MixTableChange.tempo`),
+  per-track tuning/capo/GM program/volume/pan, mid-song sound switches
+  (`Sound` automations → `MixTableChange.instrument`), percussion articulation
+  mapping to GM drum keys, time signatures, repeats, section markers,
+  anacrusis (pickup) bars, rests, ties, dead/ghost notes, palm mute, let ring,
+  hammer-on/pull-off, slides, bends, harmonics, vibrato, slap/pop/tap and
+  dynamics. Grace beats are skipped (they carry no bar time in GPIF).
+- New exports: `parseGp7` (zip container) and `parseGpif` (bare `score.gpif`
+  XML, useful for GP6 `.gpx` payloads unpacked by other means).
+- GP6 `.gpx` (BCFS/BCFZ container) is still not decoded, but is now rejected
+  with a clear `GpException` instead of an "unsupported version" error.
+- New dependencies: `archive`, `xml`.
+
 ## 0.1.1
 
 - Added dartdoc comments across the public API (`models.dart`): every model

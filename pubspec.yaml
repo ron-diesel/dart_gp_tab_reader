@@ -1,8 +1,8 @@
 name: dart_gp_tab_reader
 description: >-
-  Pure-Dart, read-only reader for Guitar Pro tablature files (GP3, GP4, GP5).
-  Parses the binary format into a Song > Track > Measure > Voice > Beat > Note tree.
-version: 0.1.1
+  Pure-Dart, read-only reader for Guitar Pro tablature files (GP3, GP4, GP5,
+  and GP7/GP8 .gp). Parses them into a Song > Track > Measure > Voice > Beat > Note tree.
+version: 0.2.0
 repository: https://github.com/ron-diesel/dart_gp_tab_reader
 issue_tracker: https://github.com/ron-diesel/dart_gp_tab_reader/issues
 
@@ -19,6 +19,10 @@ topics:
 
 environment:
   sdk: '^3.8.0'
+
+dependencies:
+  archive: ^4.0.0
+  xml: '>=6.5.0 <8.0.0'
 
 dev_dependencies:
   lints: '>=3.0.0 <7.0.0'

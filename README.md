@@ -3,16 +3,22 @@
 [![pub package](https://img.shields.io/pub/v/dart_gp_tab_reader.svg)](https://pub.dev/packages/dart_gp_tab_reader)
 [![License: LGPL v3](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
 
-A pure-Dart, **read-only** reader for Guitar Pro tablature files — **GP3, GP4 and GP5**.
+A pure-Dart, **read-only** reader for Guitar Pro tablature files — **GP3, GP4,
+GP5** and **GP7/GP8 (`.gp`)**.
 
-This is a Dart port of [PyGuitarPro](https://github.com/Perlence/PyGuitarPro) by
-Sviatoslav Abakumov, which is itself a port of
-[AlphaTab](https://github.com/CoderLine/alphaTab) /
-[TuxGuitar](https://sourceforge.net/projects/tuxguitar/). The binary format
-parsing logic mirrors PyGuitarPro closely.
+The GP3–5 binary readers are a Dart port of
+[PyGuitarPro](https://github.com/Perlence/PyGuitarPro) by Sviatoslav Abakumov,
+which is itself a port of [AlphaTab](https://github.com/CoderLine/alphaTab) /
+[TuxGuitar](https://sourceforge.net/projects/tuxguitar/); the binary format
+parsing logic mirrors PyGuitarPro closely. The GP7/GP8 `.gp` reader parses the
+zip-packed GPIF (`score.gpif`) XML score into the same model tree, so callers
+don't need to care which container a file came in — `parseGp` detects the
+format from the bytes.
 
-> The newer **GP6/GP7** (`.gpx` / `.gp`) zip-based formats are **not** supported —
-> they are out of scope of PyGuitarPro as well.
+> The **GP6** (`.gpx`) format is **not** supported: it wraps the same GPIF XML
+> in a proprietary BCFS/BCFZ container that this package doesn't decode.
+> Re-save such files as `.gp` (GP7+) or `.gp5`. (`parseGpif` is exported, so if
+> you unpack the container yourself you can still parse the score.)
 
 ## Usage
 
