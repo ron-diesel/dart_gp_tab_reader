@@ -1,3 +1,15 @@
+## 0.3.1
+
+- GPIF reader: `HarmonicType` values are now matched case-insensitively —
+  some GPIF writers emit `artificial`/`natural` lowercase, which previously
+  dropped the harmonic entirely. A note with an enabled `Harmonic` property
+  but no recognized type now falls back to a natural harmonic instead of
+  none.
+- GPIF reader: the `HarmonicFret` touch-node distance is now read —
+  artificial harmonics carry it in the new `ArtificialHarmonic.fret` field,
+  tapped harmonics resolve it to their absolute tap fret
+  (`TappedHarmonic.fret`), matching the GP4/5 readers.
+
 ## 0.3.0
 
 - **Guitar Pro 6 (`.gpx`) support.** `parseGp` now decodes the proprietary

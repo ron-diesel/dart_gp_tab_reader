@@ -1627,7 +1627,8 @@ class NaturalHarmonic extends HarmonicEffect {
   const NaturalHarmonic() : super(1);
 }
 
-/// An artificial harmonic, optionally targeting a [pitch] and [octave].
+/// An artificial harmonic, optionally targeting a [pitch] and [octave]
+/// (GP4/5 files) or a touch-node [fret] distance (GP7/8 files).
 class ArtificialHarmonic extends HarmonicEffect {
   /// Target pitch class, if specified.
   final PitchClass? pitch;
@@ -1635,8 +1636,12 @@ class ArtificialHarmonic extends HarmonicEffect {
   /// Target octave, if specified.
   final Octave? octave;
 
+  /// Touch-node distance in frets above the fretted note (GP7/8 `HFret`,
+  /// e.g. 12 = octave node, 5 = two octaves), if specified.
+  final double? fret;
+
   /// Creates an artificial harmonic.
-  const ArtificialHarmonic([this.pitch, this.octave]) : super(2);
+  const ArtificialHarmonic([this.pitch, this.octave, this.fret]) : super(2);
 }
 
 /// A tapped harmonic at an optional [fret].

@@ -276,6 +276,85 @@ void main() {
     });
   });
 
+  test('reads harmonics: lowercase HType, HFret, bare Harmonic enable', () {
+    // Real-world GPIF from non-Guitar-Pro writers: lowercase HType values,
+    // HFret touch distances, and Harmonic/HarmonicType order variations.
+    const gpif = '''
+<?xml version="1.0" encoding="utf-8"?>
+<GPIF>
+  <Score><Title>H</Title></Score>
+  <Tracks>
+    <Track id="0">
+      <Name>Guitar</Name>
+      <Staves><Staff><Properties>
+        <Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+      </Properties></Staff></Staves>
+    </Track>
+  </Tracks>
+  <MasterBars><MasterBar><Time>4/4</Time><Bars>0</Bars></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0 -1 -1 -1</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0 1 2 3</Beats></Voice></Voices>
+  <Beats>
+    <Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat>
+    <Beat id="1"><Rhythm ref="0"/><Notes>1</Notes></Beat>
+    <Beat id="2"><Rhythm ref="0"/><Notes>2</Notes></Beat>
+    <Beat id="3"><Rhythm ref="0"/><Notes>3</Notes></Beat>
+  </Beats>
+  <Notes>
+    <Note id="0">
+      <Properties>
+        <Property name="String"><String>2</String></Property>
+        <Property name="Fret"><Fret>10</Fret></Property>
+        <Property name="Harmonic"><Enable/></Property>
+        <Property name="HarmonicType"><HType>artificial</HType></Property>
+        <Property name="HarmonicFret"><HFret>4.000000</HFret></Property>
+      </Properties>
+      <Vibrato>Slight</Vibrato>
+    </Note>
+    <Note id="1">
+      <Properties>
+        <Property name="String"><String>0</String></Property>
+        <Property name="Fret"><Fret>12</Fret></Property>
+        <Property name="HarmonicType"><HType>Natural</HType></Property>
+      </Properties>
+    </Note>
+    <Note id="2">
+      <Properties>
+        <Property name="String"><String>0</String></Property>
+        <Property name="Fret"><Fret>5</Fret></Property>
+        <Property name="HarmonicFret"><HFret>12.000000</HFret></Property>
+        <Property name="HarmonicType"><HType>Tap</HType></Property>
+      </Properties>
+    </Note>
+    <Note id="3">
+      <Properties>
+        <Property name="String"><String>0</String></Property>
+        <Property name="Fret"><Fret>7</Fret></Property>
+        <Property name="Harmonic"><Enable/></Property>
+      </Properties>
+    </Note>
+  </Notes>
+  <Rhythms><Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm></Rhythms>
+</GPIF>
+''';
+    final song = parseGpif(Uint8List.fromList(utf8.encode(gpif)));
+    final beats = song.tracks[0].measures[0].voices[0].beats;
+
+    final artificial = beats[0].notes.single;
+    expect(artificial.effect.harmonic, isA<ArtificialHarmonic>());
+    expect((artificial.effect.harmonic as ArtificialHarmonic).fret, 4.0);
+    expect(artificial.effect.vibrato, isTrue);
+
+    expect(beats[1].notes.single.effect.harmonic, isA<NaturalHarmonic>());
+
+    final tapped = beats[2].notes.single.effect.harmonic;
+    expect(tapped, isA<TappedHarmonic>());
+    expect((tapped as TappedHarmonic).fret, 17); // fret 5 + HFret 12
+
+    // A bare enabled Harmonic with no type falls back to natural.
+    expect(beats[3].notes.single.effect.harmonic, isA<NaturalHarmonic>());
+  });
+
   test('parseGpif reads bare score.gpif XML', () {
     final song = parseGpif(Uint8List.fromList(utf8.encode(_gpif)));
     expect(song.title, 'Test Song');

@@ -590,6 +590,9 @@ class _GpifReader {
     int? gpifString;
     int? fret;
     int? midi;
+    var harmonicEnabled = false;
+    String? harmonicType;
+    double? harmonicFret;
     var element = -1;
     var variation = 0;
 
@@ -634,14 +637,29 @@ class _GpifReader {
               BendPoint(BendEffect.maxPosition, (value / 25).round()),
             ];
           }
+        // Harmonics span up to three properties whose order is not fixed:
+        // a bare enable flag, the kind, and the touch-fret distance. Collect
+        // them and build the effect once all properties are read.
+        case 'Harmonic':
+          if (prop.getElement('Enable') != null) harmonicEnabled = true;
         case 'HarmonicType':
-          note.effect.harmonic = _harmonicOf(_text(prop.getElement('HType')));
+          harmonicType = _text(prop.getElement('HType'));
+        case 'HarmonicFret':
+          harmonicFret = double.tryParse(_text(prop.getElement('HFret')));
         // GP6 percussion: drum sound as an element/variation pair.
         case 'Element':
           element = int.tryParse(_text(prop.getElement('Element'))) ?? -1;
         case 'Variation':
           variation = int.tryParse(_text(prop.getElement('Variation'))) ?? 0;
       }
+    }
+
+    if (harmonicType != null || harmonicEnabled) {
+      note.effect.harmonic = _harmonicOf(
+        harmonicType ?? '',
+        harmonicFret,
+        fret,
+      );
     }
 
     for (final child in el.childElements) {
@@ -729,14 +747,22 @@ class _GpifReader {
     return row[variation < 0 || variation >= row.length ? 0 : variation];
   }
 
-  HarmonicEffect? _harmonicOf(String type) => switch (type) {
-    'Natural' => const NaturalHarmonic(),
-    'Artificial' => const ArtificialHarmonic(),
-    'Tap' => const TappedHarmonic(),
-    'Pinch' => const PinchHarmonic(),
-    'Semi' || 'Feedback' => const SemiHarmonic(),
-    _ => null,
-  };
+  /// Builds a harmonic from its GPIF properties. [type] is matched
+  /// case-insensitively — Guitar Pro capitalizes `HType` values but other
+  /// GPIF writers emit them lowercase. [harmonicFret] is the `HFret`
+  /// touch-node distance in frets above the note; [fret] the note's own fret
+  /// (tapped harmonics store the absolute tap fret, like the GP4/5 readers).
+  /// An enabled harmonic with no recognized type falls back to natural.
+  HarmonicEffect? _harmonicOf(String type, double? harmonicFret, int? fret) =>
+      switch (type.toLowerCase()) {
+        'artificial' => ArtificialHarmonic(null, null, harmonicFret),
+        'tap' => TappedHarmonic(
+          harmonicFret != null ? (fret ?? 0) + harmonicFret.round() : null,
+        ),
+        'pinch' => const PinchHarmonic(),
+        'semi' || 'feedback' => const SemiHarmonic(),
+        _ => const NaturalHarmonic(),
+      };
 
   /// GPIF dynamic marks to MIDI velocity, on the same ppp..fff ladder the
   /// GP3-5 readers use.
