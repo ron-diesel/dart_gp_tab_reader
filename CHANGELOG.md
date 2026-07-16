@@ -1,3 +1,26 @@
+## 0.3.2
+
+- GPIF reader: **multi-point bend curves.** The full
+  `BendOrigin/Middle/Destination{Value,Offset}` property set is now read
+  (mirroring alphaTab's mapping), so bend-releases, pre-bends and held bends
+  keep their real shape — previously every bend was flattened to a single
+  `0 → destination` linear ramp.
+- GPIF reader: **whammy bar.** Both the GP7/8 `WhammyBar*` beat properties
+  and the GP6 `<Whammy>` attribute form now land on
+  `BeatEffect.tremoloBar` with the same multi-point curve; whammy gestures
+  in `.gp`/`.gpx` files were previously dropped entirely.
+- GPIF reader: **tremolo picking** (`<Tremolo>1/2|1/4|1/8</Tremolo>` beat
+  element → `NoteEffect.tremoloPicking` at eighth/16th/32nd strokes),
+  **trills** (`<Trill>` note element, MIDI value converted to a fret on the
+  note's string, 16th period) and **accent flags** (`<Accent>` bit field:
+  0x01 staccato, 0x04 heavy accent, 0x08 accent) are now read — all were
+  previously dropped.
+- GPIF reader: **grace notes.** A `<GraceNotes>` beat's notes now become
+  `GraceEffect`s on the matching notes of the following real beat (fret,
+  velocity, duration, on/before-beat placement, hammered/slid transition)
+  instead of being skipped outright. Bar timing is unchanged (a grace beat
+  still consumes no bar time).
+
 ## 0.3.1
 
 - GPIF reader: `HarmonicType` values are now matched case-insensitively —

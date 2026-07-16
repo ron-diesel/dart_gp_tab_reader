@@ -355,6 +355,166 @@ void main() {
     expect(beats[3].notes.single.effect.harmonic, isA<NaturalHarmonic>());
   });
 
+  group('GPIF ornaments, bends and whammy', () {
+    // One guitar track, one 4/4 bar: a multi-point bend-release, a tremolo
+    // beat, a trilled+accented note, a GP7 whammy dive, a GP6 <Whammy> dive,
+    // and a hammered grace pickup into the last note.
+    const gpif = '''
+<?xml version="1.0" encoding="utf-8"?>
+<GPIF>
+  <Score><Title>Orn</Title></Score>
+  <Tracks>
+    <Track id="0">
+      <Name>Guitar</Name>
+      <Staves><Staff><Properties>
+        <Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+      </Properties></Staff></Staves>
+    </Track>
+  </Tracks>
+  <MasterBars><MasterBar><Time>6/4</Time><Bars>0</Bars></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0 -1 -1 -1</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0 1 2 3 4 6 5</Beats></Voice></Voices>
+  <Beats>
+    <Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat>
+    <Beat id="1"><Rhythm ref="0"/><Tremolo>1/8</Tremolo><Notes>1</Notes></Beat>
+    <Beat id="2"><Rhythm ref="0"/><Notes>2</Notes></Beat>
+    <Beat id="3">
+      <Rhythm ref="0"/><Notes>3</Notes>
+      <Properties>
+        <Property name="WhammyBar"><Enable/></Property>
+        <Property name="WhammyBarOriginValue"><Float>0</Float></Property>
+        <Property name="WhammyBarDestinationValue"><Float>-200</Float></Property>
+      </Properties>
+    </Beat>
+    <Beat id="4">
+      <Rhythm ref="0"/><Notes>3</Notes>
+      <Whammy originValue="-100" originOffset="0" middleValue="-100"
+              middleOffset1="30" middleOffset2="60"
+              destinationValue="0" destinationOffset="100"/>
+    </Beat>
+    <Beat id="5"><Rhythm ref="0"/><Notes>5</Notes></Beat>
+    <Beat id="6">
+      <GraceNotes>BeforeBeat</GraceNotes>
+      <Rhythm ref="1"/><Dynamic>P</Dynamic><Notes>4</Notes>
+    </Beat>
+  </Beats>
+  <Notes>
+    <Note id="0">
+      <Properties>
+        <Property name="String"><String>2</String></Property>
+        <Property name="Fret"><Fret>7</Fret></Property>
+        <Property name="Bended"><Enable/></Property>
+        <Property name="BendOriginValue"><Float>0</Float></Property>
+        <Property name="BendOriginOffset"><Float>25</Float></Property>
+        <Property name="BendMiddleValue"><Float>100</Float></Property>
+        <Property name="BendMiddleOffset1"><Float>50</Float></Property>
+        <Property name="BendMiddleOffset2"><Float>75</Float></Property>
+        <Property name="BendDestinationValue"><Float>0</Float></Property>
+        <Property name="BendDestinationOffset"><Float>100</Float></Property>
+      </Properties>
+    </Note>
+    <Note id="1">
+      <Properties>
+        <Property name="String"><String>1</String></Property>
+        <Property name="Fret"><Fret>0</Fret></Property>
+      </Properties>
+    </Note>
+    <Note id="2">
+      <Properties>
+        <Property name="String"><String>3</String></Property>
+        <Property name="Fret"><Fret>5</Fret></Property>
+      </Properties>
+      <Trill>62</Trill>
+      <Accent>5</Accent>
+    </Note>
+    <Note id="3">
+      <Properties>
+        <Property name="String"><String>0</String></Property>
+        <Property name="Fret"><Fret>0</Fret></Property>
+      </Properties>
+    </Note>
+    <Note id="4">
+      <Properties>
+        <Property name="String"><String>1</String></Property>
+        <Property name="Fret"><Fret>2</Fret></Property>
+        <Property name="HopoOrigin"><Enable/></Property>
+      </Properties>
+    </Note>
+    <Note id="5">
+      <Properties>
+        <Property name="String"><String>1</String></Property>
+        <Property name="Fret"><Fret>4</Fret></Property>
+      </Properties>
+    </Note>
+  </Notes>
+  <Rhythms>
+    <Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm>
+    <Rhythm id="1"><NoteValue>32nd</NoteValue></Rhythm>
+  </Rhythms>
+</GPIF>
+''';
+    final song = parseGpif(Uint8List.fromList(utf8.encode(gpif)));
+    final beats = song.tracks[0].measures[0].voices[0].beats;
+
+    test('multi-point bend keeps its shape (bend-release)', () {
+      final bend = beats[0].notes.single.effect.bend;
+      expect(bend, isNotNull);
+      // origin (25% → pos 3, value 0), middle held at 100 raw (= 4 quarter
+      // tones) across 50%..75%, release back to 0 at the end.
+      expect(
+        [for (final p in bend!.points) (p.position, p.value)],
+        [(3, 0), (6, 4), (9, 4), (12, 0)],
+      );
+    });
+
+    test('tremolo picking lands on the beat notes', () {
+      final tp = beats[1].notes.single.effect.tremoloPicking;
+      expect(tp, isNotNull);
+      expect(tp!.duration.value, Duration.thirtySecond);
+    });
+
+    test('trill converts the MIDI value to a fret; accent flags decode', () {
+      final note = beats[2].notes.single;
+      // GPIF string 3 (D, open 55) + trill MIDI 62 → fret 7.
+      expect(note.effect.trill?.fret, 7);
+      expect(note.effect.trill?.duration.value, Duration.sixteenth);
+      expect(note.effect.staccato, isTrue); // Accent bit 0x01
+      expect(note.effect.heavyAccentuatedNote, isTrue); // bit 0x04
+      expect(note.effect.accentuatedNote, isFalse);
+    });
+
+    test('GP7 whammy properties become a tremolo-bar curve', () {
+      final bar = beats[3].effect.tremoloBar;
+      expect(bar, isNotNull);
+      expect(
+        [for (final p in bar!.points) (p.position, p.value)],
+        [(0, 0), (12, -8)], // dive a whole tone (raw −200)
+      );
+    });
+
+    test('GP6 <Whammy> attributes become a tremolo-bar curve', () {
+      final bar = beats[4].effect.tremoloBar;
+      expect(bar, isNotNull);
+      expect(
+        [for (final p in bar!.points) (p.position, p.value)],
+        [(0, -4), (4, -4), (7, -4), (12, 0)], // held dip, then release
+      );
+    });
+
+    test('a grace beat becomes a GraceEffect on the next note', () {
+      final target = beats[5].notes.single;
+      final grace = target.effect.grace;
+      expect(grace, isNotNull);
+      expect(grace!.fret, 2);
+      expect(grace.isOnBeat, isFalse);
+      expect(grace.duration, Duration.thirtySecond); // the grace beat rhythm
+      expect(grace.transition, GraceEffectTransition.hammer);
+      expect(grace.velocity, 47); // P (min 15 + 2 × increment 16)
+      // The beat count is unchanged — the grace consumed no bar time.
+      expect(beats, hasLength(6));
+    });
+  });
+
   test('parseGpif reads bare score.gpif XML', () {
     final song = parseGpif(Uint8List.fromList(utf8.encode(_gpif)));
     expect(song.title, 'Test Song');

@@ -534,18 +534,63 @@ class _GpifReader {
   Voice _readVoice(XmlElement el, Measure measure, _TrackInfo info) {
     final voice = Voice(measure);
     num tick = 0;
+    // A grace beat consumes no bar time (including its rhythm would shift
+    // every later beat), so it isn't emitted as a beat of its own — instead
+    // its notes become [GraceEffect]s on the matching notes of the NEXT real
+    // beat, which is how the GP3-5 model stores grace notes.
+    XmlElement? pendingGrace;
     for (final beatId in _text(el.getElement('Beats')).split(RegExp(r'\s+'))) {
       final beatEl = _beatById[beatId];
       if (beatEl == null) continue;
-      // Grace beats are ornaments that consume no bar time; including their
-      // rhythm would shift every later beat, so they are skipped.
-      if (beatEl.getElement('GraceNotes') != null) continue;
+      if (beatEl.getElement('GraceNotes') != null) {
+        pendingGrace = beatEl;
+        continue;
+      }
       final beat = _readBeat(beatEl, voice, info);
+      if (pendingGrace != null) {
+        _attachGrace(pendingGrace, beat, info);
+        pendingGrace = null;
+      }
       beat.start = tick; // measure-relative; rebased in _buildHeadersAndTiming
       voice.beats.add(beat);
       tick += beat.duration.time;
     }
     return voice;
+  }
+
+  /// Turns the notes of grace beat [graceEl] into [GraceEffect]s on the
+  /// matching notes (same string) of the following real [beat]. The grace
+  /// beat's rhythm gives the ornament's duration (as the note-value
+  /// denominator [GraceEffect.duration] stores), its dynamic the velocity,
+  /// and `<GraceNotes>OnBeat</GraceNotes>` the placement. A hammer flag on
+  /// the grace note marks a hammered transition, a slide flag a slid one.
+  void _attachGrace(XmlElement graceEl, Beat beat, _TrackInfo info) {
+    if (info.isPercussion) return;
+    final graceBeat = _readBeat(graceEl, beat.voice, info);
+    final onBeat = _text(graceEl.getElement('GraceNotes')) == 'OnBeat';
+    for (final graceNote in graceBeat.notes) {
+      Note? target;
+      for (final n in beat.notes) {
+        if (n.string == graceNote.string) {
+          target = n;
+          break;
+        }
+      }
+      target ??= beat.notes.isNotEmpty ? beat.notes.first : null;
+      if (target == null) continue;
+      target.effect.grace = GraceEffect(
+        fret: graceNote.value < 0 ? 0 : graceNote.value,
+        duration: graceBeat.duration.value,
+        velocity: graceNote.velocity,
+        isDead: graceNote.type == NoteType.dead,
+        isOnBeat: onBeat,
+        transition: graceNote.effect.hammer
+            ? GraceEffectTransition.hammer
+            : graceNote.effect.slides.isNotEmpty
+            ? GraceEffectTransition.slide
+            : GraceEffectTransition.none,
+      );
+    }
   }
 
   Beat _readBeat(XmlElement el, Voice voice, _TrackInfo info) {
@@ -556,9 +601,19 @@ class _GpifReader {
     );
 
     final velocity = _velocityOf(_text(el.getElement('Dynamic')));
+
+    // Whammy-bar gesture, collected across properties (GP7/8) or read off the
+    // GP6 <Whammy> child; assembled into a curve after the loop.
+    var isWhammy = false;
+    double whammyOriginValue = 0, whammyOriginOffset = 0;
+    double? whammyMiddleValue, whammyMiddleOffset1, whammyMiddleOffset2;
+    double whammyDestValue = 0, whammyDestOffset = 100;
+
     for (final prop
         in el.getElement('Properties')?.findElements('Property') ??
             const <XmlElement>[]) {
+      double propFloat() =>
+          double.tryParse(_text(prop.getElement('Float'))) ?? 0;
       switch (prop.getAttribute('name')) {
         case 'VibratoWTremBar':
           beat.effect.vibrato = true;
@@ -570,19 +625,115 @@ class _GpifReader {
           if (prop.getElement('Enable') != null) {
             beat.effect.slapEffect = SlapEffect.popping;
           }
+        // GP7/8 whammy — same value scale as the note bends (100 = whole
+        // tone, dives negative), offsets as 0..100 % of the beat.
+        case 'WhammyBar':
+          if (prop.getElement('Enable') != null) isWhammy = true;
+        case 'WhammyBarOriginValue':
+          isWhammy = true;
+          whammyOriginValue = propFloat();
+        case 'WhammyBarOriginOffset':
+          whammyOriginOffset = propFloat();
+        case 'WhammyBarMiddleValue':
+          whammyMiddleValue = propFloat();
+        case 'WhammyBarMiddleOffset1':
+          whammyMiddleOffset1 = propFloat();
+        case 'WhammyBarMiddleOffset2':
+          whammyMiddleOffset2 = propFloat();
+        case 'WhammyBarDestinationValue':
+          isWhammy = true;
+          whammyDestValue = propFloat();
+        case 'WhammyBarDestinationOffset':
+          whammyDestOffset = propFloat();
       }
     }
+    // GP6 stores the whammy as attributes of a <Whammy> child instead.
+    final whammyEl = el.getElement('Whammy');
+    if (whammyEl != null) {
+      double attr(String name, double fallback) =>
+          double.tryParse(whammyEl.getAttribute(name) ?? '') ?? fallback;
+      isWhammy = true;
+      whammyOriginValue = attr('originValue', 0);
+      whammyOriginOffset = attr('originOffset', 0);
+      whammyMiddleValue = attr('middleValue', whammyMiddleValue ?? 0);
+      whammyMiddleOffset1 = attr('middleOffset1', 0);
+      whammyMiddleOffset2 = attr('middleOffset2', 0);
+      whammyDestValue = attr('destinationValue', 0);
+      whammyDestOffset = attr('destinationOffset', 100);
+    }
+    if (isWhammy) {
+      beat.effect.tremoloBar = _gpifBend(
+        type: BendType.dip,
+        originValue: whammyOriginValue,
+        originOffset: whammyOriginOffset,
+        middleValue: whammyMiddleValue,
+        middleOffset1: whammyMiddleOffset1,
+        middleOffset2: whammyMiddleOffset2,
+        destValue: whammyDestValue,
+        destOffset: whammyDestOffset,
+      );
+    }
+
+    // Tremolo picking: a <Tremolo> child with the stroke fraction — the same
+    // three speeds the GP4/5 binaries store (1/2 = eighths … 1/8 = 32nds).
+    final tremolo = switch (_text(el.getElement('Tremolo'))) {
+      '1/2' => Duration.eighth,
+      '1/4' => Duration.sixteenth,
+      '1/8' => Duration.thirtySecond,
+      _ => 0,
+    };
 
     final noteIds = _text(el.getElement('Notes'));
     if (noteIds.isNotEmpty) {
       for (final noteId in noteIds.split(RegExp(r'\s+'))) {
         final noteEl = _noteById[noteId];
         if (noteEl == null) continue;
-        beat.notes.add(_readNote(noteEl, beat, info, velocity));
+        final note = _readNote(noteEl, beat, info, velocity);
+        if (tremolo != 0) {
+          note.effect.tremoloPicking = TremoloPickingEffect(
+            duration: Duration(value: tremolo),
+          );
+        }
+        beat.notes.add(note);
       }
     }
     beat.status = beat.notes.isEmpty ? BeatStatus.rest : BeatStatus.normal;
     return beat;
+  }
+
+  /// Assembles a GPIF bend/whammy gesture into a [BendEffect]. GPIF stores up
+  /// to three segments as value/offset pairs — origin, an optional flat
+  /// middle, destination — with values on the raw GP scale (100 = whole tone,
+  /// whammy dives negative) and offsets as 0..100 % of the note/beat. Points
+  /// land on the model's [BendPoint] grid (position 0..[BendEffect
+  /// .maxPosition], value in quarter-tone units), mirroring how alphaTab
+  /// reads the same properties. A middle value with no offsets sits mid-note.
+  BendEffect _gpifBend({
+    required BendType type,
+    required double originValue,
+    required double originOffset,
+    double? middleValue,
+    double? middleOffset1,
+    double? middleOffset2,
+    required double destValue,
+    required double destOffset,
+  }) {
+    int pos(double percent) => (percent * BendEffect.maxPosition / 100)
+        .round()
+        .clamp(0, BendEffect.maxPosition);
+    int val(double raw) => (raw / 25).round();
+    final points = <BendPoint>[BendPoint(pos(originOffset), val(originValue))];
+    if (middleValue != null) {
+      final hasM1 = middleOffset1 != null && middleOffset1 != 0;
+      final hasM2 = middleOffset2 != null && middleOffset2 != 0;
+      if (hasM1) points.add(BendPoint(pos(middleOffset1), val(middleValue)));
+      if (hasM2) points.add(BendPoint(pos(middleOffset2), val(middleValue)));
+      if (!hasM1 && !hasM2 && middleValue != 0) {
+        points.add(BendPoint(BendEffect.maxPosition ~/ 2, val(middleValue)));
+      }
+    }
+    points.add(BendPoint(pos(destOffset), val(destValue)));
+    return BendEffect(type: type, value: destValue.round(), points: points);
   }
 
   Note _readNote(XmlElement el, Beat beat, _TrackInfo info, int velocity) {
@@ -596,9 +747,21 @@ class _GpifReader {
     var element = -1;
     var variation = 0;
 
+    // Bend gesture, collected across properties (their order isn't fixed)
+    // and assembled into the multi-point curve after the loop. GP files
+    // write real shapes here — bend-release, pre-bend, held bends — that a
+    // single 0→destination ramp (the old mapping) flattened away.
+    var isBended = false;
+    double bendOriginValue = 0, bendOriginOffset = 0;
+    double? bendMiddleValue, bendMiddleOffset1, bendMiddleOffset2;
+    double bendDestValue = 0, bendDestOffset = 100;
+    int? trillMidi;
+
     for (final prop
         in el.getElement('Properties')?.findElements('Property') ??
             const <XmlElement>[]) {
+      double propFloat() =>
+          double.tryParse(_text(prop.getElement('Float'))) ?? 0;
       switch (prop.getAttribute('name')) {
         case 'String':
           gpifString = int.tryParse(_text(prop.getElement('String')));
@@ -621,22 +784,27 @@ class _GpifReader {
         case 'Slide':
           final flags = int.tryParse(_text(prop.getElement('Flags'))) ?? 0;
           note.effect.slides = _slidesFromFlags(flags);
+        // GPIF bend values share the GP3-5 raw scale (100 = whole tone);
+        // offsets are 0..100 % of the note. Collected here, assembled into
+        // the multi-point curve after the loop (see [_gpifBend]).
         case 'Bended':
-          if (prop.getElement('Enable') != null) {
-            note.effect.bend ??= BendEffect(type: BendType.bend);
-          }
+          if (prop.getElement('Enable') != null) isBended = true;
+        case 'BendOriginValue':
+          isBended = true;
+          bendOriginValue = propFloat();
+        case 'BendOriginOffset':
+          bendOriginOffset = propFloat();
+        case 'BendMiddleValue':
+          bendMiddleValue = propFloat();
+        case 'BendMiddleOffset1':
+          bendMiddleOffset1 = propFloat();
+        case 'BendMiddleOffset2':
+          bendMiddleOffset2 = propFloat();
         case 'BendDestinationValue':
-          final value = double.tryParse(_text(prop.getElement('Float')));
-          if (value != null) {
-            // GPIF bend values share the GP3-5 raw scale (100 = full bend);
-            // keep `value` raw and scale points like the binary readers do.
-            final bend = note.effect.bend ??= BendEffect(type: BendType.bend);
-            bend.value = value.round();
-            bend.points = [
-              BendPoint(0, 0),
-              BendPoint(BendEffect.maxPosition, (value / 25).round()),
-            ];
-          }
+          isBended = true;
+          bendDestValue = propFloat();
+        case 'BendDestinationOffset':
+          bendDestOffset = propFloat();
         // Harmonics span up to three properties whose order is not fixed:
         // a bare enable flag, the kind, and the touch-fret distance. Collect
         // them and build the effect once all properties are read.
@@ -661,6 +829,18 @@ class _GpifReader {
         fret,
       );
     }
+    if (isBended) {
+      note.effect.bend = _gpifBend(
+        type: BendType.bend,
+        originValue: bendOriginValue,
+        originOffset: bendOriginOffset,
+        middleValue: bendMiddleValue,
+        middleOffset1: bendMiddleOffset1,
+        middleOffset2: bendMiddleOffset2,
+        destValue: bendDestValue,
+        destOffset: bendDestOffset,
+      );
+    }
 
     for (final child in el.childElements) {
       switch (child.name.local) {
@@ -674,6 +854,16 @@ class _GpifReader {
           note.effect.letRing = true;
         case 'AntiAccent':
           note.effect.ghostNote = true;
+        // The trill's auxiliary note as a MIDI pitch; converted to a fret
+        // against the note's string once the string is resolved below.
+        case 'Trill':
+          trillMidi = int.tryParse(_text(child));
+        // Bit flags: 0x01 staccato, 0x04 heavy accent, 0x08 accent.
+        case 'Accent':
+          final flags = int.tryParse(_text(child)) ?? 0;
+          if (flags & 0x01 != 0) note.effect.staccato = true;
+          if (flags & 0x04 != 0) note.effect.heavyAccentuatedNote = true;
+          if (flags & 0x08 != 0) note.effect.accentuatedNote = true;
       }
     }
 
@@ -700,6 +890,23 @@ class _GpifReader {
       // with string 0, the convention consumers use for pitch-only notes.
       note.string = 0;
       note.value = midi ?? fret ?? 0;
+    }
+
+    // Trill: GPIF stores the auxiliary note as a MIDI pitch; the model keeps
+    // its FRET on the note's own string (like the GP4/5 binaries). Fixed at
+    // sixteenths — GPIF writes no period.
+    if (trillMidi != null &&
+        !info.isPercussion &&
+        gpifString != null &&
+        gpifString >= 0 &&
+        gpifString < info.tuning.length) {
+      final trillFret = trillMidi - info.tuning[gpifString];
+      if (trillFret >= 0) {
+        note.effect.trill = TrillEffect(
+          fret: trillFret,
+          duration: Duration(value: Duration.sixteenth),
+        );
+      }
     }
     return note;
   }
