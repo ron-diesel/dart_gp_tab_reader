@@ -293,12 +293,13 @@ void main() {
   </Tracks>
   <MasterBars><MasterBar><Time>4/4</Time><Bars>0</Bars></MasterBar></MasterBars>
   <Bars><Bar id="0"><Voices>0 -1 -1 -1</Voices></Bar></Bars>
-  <Voices><Voice id="0"><Beats>0 1 2 3</Beats></Voice></Voices>
+  <Voices><Voice id="0"><Beats>0 1 2 3 4</Beats></Voice></Voices>
   <Beats>
     <Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat>
     <Beat id="1"><Rhythm ref="0"/><Notes>1</Notes></Beat>
     <Beat id="2"><Rhythm ref="0"/><Notes>2</Notes></Beat>
     <Beat id="3"><Rhythm ref="0"/><Notes>3</Notes></Beat>
+    <Beat id="4"><Rhythm ref="0"/><Notes>4</Notes></Beat>
   </Beats>
   <Notes>
     <Note id="0">
@@ -333,6 +334,15 @@ void main() {
         <Property name="Harmonic"><Enable/></Property>
       </Properties>
     </Note>
+    <Note id="4">
+      <Properties>
+        <Property name="String"><String>3</String></Property>
+        <Property name="Fret"><Fret>6</Fret></Property>
+        <Property name="Harmonic"><Enable/></Property>
+        <Property name="HarmonicType"><HType>natural</HType></Property>
+        <Property name="HarmonicFret"><HFret>5.800000</HFret></Property>
+      </Properties>
+    </Note>
   </Notes>
   <Rhythms><Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm></Rhythms>
 </GPIF>
@@ -345,7 +355,9 @@ void main() {
     expect((artificial.effect.harmonic as ArtificialHarmonic).fret, 4.0);
     expect(artificial.effect.vibrato, isTrue);
 
-    expect(beats[1].notes.single.effect.harmonic, isA<NaturalHarmonic>());
+    final naturalBare = beats[1].notes.single.effect.harmonic;
+    expect(naturalBare, isA<NaturalHarmonic>());
+    expect((naturalBare as NaturalHarmonic).fret, isNull);
 
     final tapped = beats[2].notes.single.effect.harmonic;
     expect(tapped, isA<TappedHarmonic>());
@@ -353,6 +365,12 @@ void main() {
 
     // A bare enabled Harmonic with no type falls back to natural.
     expect(beats[3].notes.single.effect.harmonic, isA<NaturalHarmonic>());
+
+    // A natural harmonic keeps its HFret touch node (5.8 = seventh partial;
+    // the notated fret 6 alone can't tell it from the octave node).
+    final naturalNode = beats[4].notes.single.effect.harmonic;
+    expect(naturalNode, isA<NaturalHarmonic>());
+    expect((naturalNode as NaturalHarmonic).fret, 5.8);
   });
 
   group('GPIF ornaments, bends and whammy', () {

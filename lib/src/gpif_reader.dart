@@ -957,9 +957,11 @@ class _GpifReader {
   /// Builds a harmonic from its GPIF properties. [type] is matched
   /// case-insensitively — Guitar Pro capitalizes `HType` values but other
   /// GPIF writers emit them lowercase. [harmonicFret] is the `HFret`
-  /// touch-node distance in frets above the note; [fret] the note's own fret
-  /// (tapped harmonics store the absolute tap fret, like the GP4/5 readers).
-  /// An enabled harmonic with no recognized type falls back to natural.
+  /// touch-node position in frets: for a natural harmonic it's absolute
+  /// (above the nut), for artificial/tapped it's the distance above the
+  /// note's own [fret] (tapped harmonics store the absolute tap fret, like
+  /// the GP4/5 readers). An enabled harmonic with no recognized type falls
+  /// back to natural.
   HarmonicEffect? _harmonicOf(String type, double? harmonicFret, int? fret) =>
       switch (type.toLowerCase()) {
         'artificial' => ArtificialHarmonic(null, null, harmonicFret),
@@ -968,7 +970,7 @@ class _GpifReader {
         ),
         'pinch' => const PinchHarmonic(),
         'semi' || 'feedback' => const SemiHarmonic(),
-        _ => const NaturalHarmonic(),
+        _ => NaturalHarmonic(harmonicFret),
       };
 
   /// GPIF dynamic marks to MIDI velocity, on the same ppp..fff ladder the

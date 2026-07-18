@@ -1,3 +1,14 @@
+## 0.3.3
+
+- GPIF reader: **natural harmonics keep their `HFret` touch node.**
+  `NaturalHarmonic` gained an optional `fret` field (absolute node position
+  in frets above the nut, e.g. `5.8` = seventh-partial node). Previously the
+  node was dropped for natural harmonics, so consumers could only guess the
+  sounding partial from the notated fret — which is ambiguous (a harmonic
+  notated at fret 6 is the 5.8 node, two-octaves-and-a-seventh above the
+  open string, not an octave). GP3-5 files still produce `fret == null`
+  (the binary formats carry no node).
+
 ## 0.3.2
 
 - GPIF reader: **multi-point bend curves.** The full

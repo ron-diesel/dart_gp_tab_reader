@@ -1621,10 +1621,15 @@ class HarmonicEffect {
   const HarmonicEffect(this.type);
 }
 
-/// A natural harmonic.
+/// A natural harmonic, optionally carrying the touch-node [fret] position.
 class NaturalHarmonic extends HarmonicEffect {
+  /// Touch-node position in frets above the nut (GP7/8 `HFret`, e.g. 12 =
+  /// octave node, 5.8 = seventh-partial node), if specified. The binary
+  /// GP3-5 formats carry no node — there the notated fret is the touch fret.
+  final double? fret;
+
   /// Creates a natural harmonic.
-  const NaturalHarmonic() : super(1);
+  const NaturalHarmonic([this.fret]) : super(1);
 }
 
 /// An artificial harmonic, optionally targeting a [pitch] and [octave]
