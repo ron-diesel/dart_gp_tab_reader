@@ -1,3 +1,15 @@
+## 0.3.4
+
+- GPIF reader: **mid-bar automations are no longer dropped.** An
+  `<Automation>`'s `<Position>` is an offset in QUARTER NOTES from the bar's
+  start (`2.5` = the "and" of beat 3 in a 4/4 bar); it was read as a 0..1
+  fraction of the bar, which sent every off-downbeat automation past the end
+  of its own bar, where no beat matched and the change was silently skipped.
+  Only `Position 0` automations survived. So a mid-bar `Sound` switch — the
+  usual clean → distortion change, which players write on the upbeat going
+  into the riff — never reached `MixTableChange.instrument`, and mid-bar
+  tempo changes were lost the same way.
+
 ## 0.3.3
 
 - GPIF reader: **natural harmonics keep their `HFret` touch node.**

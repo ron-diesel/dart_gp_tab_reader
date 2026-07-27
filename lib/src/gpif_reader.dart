@@ -75,14 +75,17 @@ const List<double> _tempoUnitFactor = [1, 0.5, 1, 1.5, 2, 3];
 class _Automation {
   final String type;
   final int bar;
-  final double ratio; // position within the bar as a 0..1 fraction
+  /// `<Position>` — the offset from the bar's start in QUARTER NOTES (GP writes
+  /// `2.5` for the "and" of beat 3 in a 4/4 bar), not a 0..1 fraction of the
+  /// bar. See [_GpifReader._beatAt], which turns it into ticks.
+  final double position;
   final double value; // numeric value (tempo)
   final int reference; // tempo unit (see [_tempoUnitFactor])
   final String text; // CDATA value (sound id for `Sound` automations)
   const _Automation(
     this.type,
     this.bar,
-    this.ratio,
+    this.position,
     this.value,
     this.reference,
     this.text,
@@ -177,7 +180,7 @@ class _GpifReader {
       }
     }
     // The song's base tempo is the automation at the very start (if any).
-    final initial = tempoByBar[0]?.where((a) => a.ratio == 0).toList();
+    final initial = tempoByBar[0]?.where((a) => a.position == 0).toList();
     if (initial != null && initial.isNotEmpty) {
       song.tempo = initial.first.quarterBpm.round();
     }
@@ -1046,8 +1049,8 @@ class _GpifReader {
     if (song.tracks.isEmpty) return;
     tempoByBar.forEach((barIndex, automations) {
       for (final automation in automations) {
-        if (barIndex == 0 && automation.ratio == 0) continue; // base tempo
-        final beat = _beatAt(song.tracks.first, barIndex, automation.ratio);
+        if (barIndex == 0 && automation.position == 0) continue; // base tempo
+        final beat = _beatAt(song.tracks.first, barIndex, automation.position);
         if (beat == null) continue;
         final change = beat.effect.mixTableChange ??= MixTableChange();
         change.tempo = MixTableItem(automation.quarterBpm.round());
@@ -1066,7 +1069,7 @@ class _GpifReader {
         if (automation.type != 'Sound') continue;
         final program = infos[ti].sounds[automation.text];
         if (program == null) continue;
-        final beat = _beatAt(song.tracks[ti], automation.bar, automation.ratio);
+        final beat = _beatAt(song.tracks[ti], automation.bar, automation.position);
         if (beat == null) continue;
         final change = beat.effect.mixTableChange ??= MixTableChange();
         change.instrument = MixTableItem(program);
@@ -1074,12 +1077,20 @@ class _GpifReader {
     }
   }
 
-  /// The first beat of [track]'s measure [barIndex] at or after [ratio]
-  /// (0..1 position within the bar), searched across its voices.
-  Beat? _beatAt(Track track, int barIndex, double ratio) {
+  /// The first beat of [track]'s measure [barIndex] at or after [position]
+  /// quarter notes into the bar, searched across its voices.
+  ///
+  /// GP writes an automation's `<Position>` as an offset in QUARTER NOTES from
+  /// the bar's start (`2.5` = the "and" of beat 3 in 4/4), so it scales by
+  /// [Duration.quarterTime] — reading it as a 0..1 fraction of the bar sent
+  /// every mid-bar automation past the end of its own bar, where no beat
+  /// matched and the change was silently dropped (only the `Position 0` ones
+  /// survived, since 0 lands on the downbeat either way). A position past the
+  /// bar's last beat still finds nothing and is skipped, as before.
+  Beat? _beatAt(Track track, int barIndex, double position) {
     if (barIndex < 0 || barIndex >= track.measures.length) return null;
     final measure = track.measures[barIndex];
-    final target = measure.header.start + measure.header.length * ratio;
+    final target = measure.header.start + position * Duration.quarterTime;
     Beat? best;
     for (final voice in measure.voices) {
       for (final beat in voice.beats) {

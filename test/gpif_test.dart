@@ -50,6 +50,13 @@ const String _gpif = '''
           <Type>Sound</Type><Bar>1</Bar><Position>0</Position>
           <Value><![CDATA[P;Dist;User]]></Value>
         </Automation>
+        <!-- Mid-bar switch back: Position is an offset in QUARTER NOTES, so
+             this lands on bar 2's second beat (two quarters in), not on a
+             fraction of the bar. -->
+        <Automation>
+          <Type>Sound</Type><Bar>2</Bar><Position>2</Position>
+          <Value><![CDATA[P;Clean;User]]></Value>
+        </Automation>
       </Automations>
       <RSE>
         <ChannelStrip>
@@ -265,6 +272,15 @@ void main() {
       // Mid-song tempo: 70 dotted-quarter = 105 quarter BPM, on bar 2.
       final barTwo = guitar.measures[2].voices[0].beats.first;
       expect(barTwo.effect.mixTableChange?.tempo?.value, 105);
+      // A MID-BAR sound switch: <Position> counts quarter notes from the bar's
+      // start, so `2` is bar 2's second beat (two half-notes in this bar).
+      // Reading it as a 0..1 fraction of the bar pushed the target two whole
+      // bars past its own bar, where nothing matched and the switch was
+      // silently dropped — clean→distortion changes written off the downbeat
+      // never reached playback.
+      final barTwoBeats = guitar.measures[2].voices[0].beats;
+      expect(barTwoBeats[1].start, q + 4 * q + 3 * q + 2 * q);
+      expect(barTwoBeats[1].effect.mixTableChange?.instrument?.value, 27);
     });
 
     test('maps percussion notes through the articulation table', () {
