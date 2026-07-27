@@ -75,6 +75,7 @@ const List<double> _tempoUnitFactor = [1, 0.5, 1, 1.5, 2, 3];
 class _Automation {
   final String type;
   final int bar;
+
   /// `<Position>` — the offset from the bar's start in QUARTER NOTES (GP writes
   /// `2.5` for the "and" of beat 3 in a 4/4 bar), not a 0..1 fraction of the
   /// bar. See [_GpifReader._beatAt], which turns it into ticks.
@@ -1069,7 +1070,11 @@ class _GpifReader {
         if (automation.type != 'Sound') continue;
         final program = infos[ti].sounds[automation.text];
         if (program == null) continue;
-        final beat = _beatAt(song.tracks[ti], automation.bar, automation.position);
+        final beat = _beatAt(
+          song.tracks[ti],
+          automation.bar,
+          automation.position,
+        );
         if (beat == null) continue;
         final change = beat.effect.mixTableChange ??= MixTableChange();
         change.instrument = MixTableItem(program);
