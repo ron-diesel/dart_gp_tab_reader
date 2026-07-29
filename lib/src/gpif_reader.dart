@@ -630,7 +630,9 @@ class _GpifReader {
         // Trem-bar vibrato — the whole beat wobbles on the bar, with its own
         // `<Strength>Slight|Wide</Strength>`.
         case 'VibratoWTremBar':
-          beat.effect.vibrato = _vibratoKind(_text(prop.getElement('Strength')));
+          beat.effect.vibrato = _vibratoKind(
+            _text(prop.getElement('Strength')),
+          );
         case 'Slapped':
           if (prop.getElement('Enable') != null) {
             beat.effect.slapEffect = SlapEffect.slapping;

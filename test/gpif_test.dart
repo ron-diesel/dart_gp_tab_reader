@@ -549,8 +549,10 @@ void main() {
     });
   });
 
-  test('vibrato keeps its written width; the bar vibrato stays on the beat', () {
-    const gpif = '''
+  test(
+    'vibrato keeps its written width; the bar vibrato stays on the beat',
+    () {
+      const gpif = '''
 <GPIF>
   <Score><Title>V</Title></Score>
   <Tracks>
@@ -606,19 +608,20 @@ void main() {
   <Rhythms><Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm></Rhythms>
 </GPIF>
 ''';
-    final beats = parseGpif(
-      Uint8List.fromList(utf8.encode(gpif)),
-    ).tracks[0].measures[0].voices[0].beats;
+      final beats = parseGpif(
+        Uint8List.fromList(utf8.encode(gpif)),
+      ).tracks[0].measures[0].voices[0].beats;
 
-    expect(beats[0].notes.single.effect.vibrato, VibratoKind.slight);
-    expect(beats[1].notes.single.effect.vibrato, VibratoKind.wide);
-    // An unlabelled <Vibrato/> is Guitar Pro's plain `~`.
-    expect(beats[2].notes.single.effect.vibrato, VibratoKind.slight);
-    // The bar vibrato is a BEAT effect and leaves the note's own alone.
-    expect(beats[3].notes.single.effect.vibrato, VibratoKind.none);
-    expect(beats[3].effect.vibrato, VibratoKind.wide);
-    expect(beats[0].effect.vibrato, VibratoKind.none);
-  });
+      expect(beats[0].notes.single.effect.vibrato, VibratoKind.slight);
+      expect(beats[1].notes.single.effect.vibrato, VibratoKind.wide);
+      // An unlabelled <Vibrato/> is Guitar Pro's plain `~`.
+      expect(beats[2].notes.single.effect.vibrato, VibratoKind.slight);
+      // The bar vibrato is a BEAT effect and leaves the note's own alone.
+      expect(beats[3].notes.single.effect.vibrato, VibratoKind.none);
+      expect(beats[3].effect.vibrato, VibratoKind.wide);
+      expect(beats[0].effect.vibrato, VibratoKind.none);
+    },
+  );
 
   test('a MasterTrack <Anacrusis/> shortens the first (pickup) bar', () {
     // GP7/8 flags the pickup once, on the MasterTrack; the bar itself keeps
