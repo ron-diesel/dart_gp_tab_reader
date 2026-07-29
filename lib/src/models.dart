@@ -1397,6 +1397,25 @@ class BeatStroke {
   }
 }
 
+/// How hard a vibrato shakes the pitch. Guitar Pro authors it per note as
+/// `Slight` (the plain `~` wobble) or `Wide` (the exaggerated one, written as
+/// a fatter squiggle) — GP6/7/8 store the word itself, the GP3–5 binaries only
+/// have flags, so their note-level vibrato reads as [slight] and their
+/// beat-level (trem-bar) one as [wide], which is what those flags mean.
+enum VibratoKind {
+  /// No vibrato written.
+  none,
+
+  /// The standard `~` — a narrow shake around the note.
+  slight,
+
+  /// The wide/exaggerated shake.
+  wide;
+
+  /// Whether any vibrato is written.
+  bool get isOn => this != VibratoKind.none;
+}
+
 /// Effects applied to a whole beat (as opposed to a single note).
 class BeatEffect {
   /// Strum across the strings.
@@ -1423,8 +1442,11 @@ class BeatEffect {
   /// Bass slap technique.
   SlapEffect slapEffect;
 
-  /// Whether vibrato is applied.
-  bool vibrato;
+  /// Vibrato played with the TREMOLO BAR, shaking every note of the beat —
+  /// GP6/7/8's `VibratoWTremBar` beat property (with its own `Strength`), the
+  /// "wide vibrato" flag of the GP3–5 binaries. The fretting-hand vibrato of a
+  /// single note lives on [NoteEffect.vibrato] instead.
+  VibratoKind vibrato;
 
   /// Creates a beat effect (all off by default).
   BeatEffect({
@@ -1436,7 +1458,7 @@ class BeatEffect {
     this.tremoloBar,
     this.mixTableChange,
     this.slapEffect = SlapEffect.none,
-    this.vibrato = false,
+    this.vibrato = VibratoKind.none,
   }) : stroke = stroke ?? BeatStroke();
 
   /// Whether a chord diagram is attached.
@@ -1717,8 +1739,9 @@ class NoteEffect {
   /// Trill effect, if any.
   TrillEffect? trill;
 
-  /// Whether vibrato is applied.
-  bool vibrato;
+  /// Fretting-hand vibrato on this note, and how wide it is written. A
+  /// trem-bar vibrato covering the whole beat is [BeatEffect.vibrato].
+  VibratoKind vibrato;
 
   /// Creates a note effect with everything off by default.
   NoteEffect({
@@ -1737,7 +1760,7 @@ class NoteEffect {
     this.staccato = false,
     this.tremoloPicking,
     this.trill,
-    this.vibrato = false,
+    this.vibrato = VibratoKind.none,
   }) : slides = slides ?? <SlideType>[];
 
   /// Whether a harmonic effect is present.

@@ -262,7 +262,7 @@ void main() {
       final tied = guitar.measures[2].voices[0].beats;
       expect(tied[0].notes.single.type, NoteType.normal); // tie origin
       expect(tied[1].notes.single.type, NoteType.tie); // tie destination
-      expect(tied[1].notes.single.effect.vibrato, isTrue);
+      expect(tied[1].notes.single.effect.vibrato, VibratoKind.slight);
     });
 
     test('attaches tempo and sound automations as mix-table changes', () {
@@ -369,7 +369,7 @@ void main() {
     final artificial = beats[0].notes.single;
     expect(artificial.effect.harmonic, isA<ArtificialHarmonic>());
     expect((artificial.effect.harmonic as ArtificialHarmonic).fret, 4.0);
-    expect(artificial.effect.vibrato, isTrue);
+    expect(artificial.effect.vibrato, VibratoKind.slight);
 
     final naturalBare = beats[1].notes.single.effect.harmonic;
     expect(naturalBare, isA<NaturalHarmonic>());
@@ -547,6 +547,128 @@ void main() {
       // The beat count is unchanged — the grace consumed no bar time.
       expect(beats, hasLength(6));
     });
+  });
+
+  test('vibrato keeps its written width; the bar vibrato stays on the beat', () {
+    const gpif = '''
+<GPIF>
+  <Score><Title>V</Title></Score>
+  <Tracks>
+    <Track id="0">
+      <Name>Guitar</Name>
+      <Staves><Staff><Properties>
+        <Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+      </Properties></Staff></Staves>
+    </Track>
+  </Tracks>
+  <MasterBars><MasterBar><Time>4/4</Time><Bars>0</Bars></MasterBar></MasterBars>
+  <Bars><Bar id="0"><Voices>0 -1 -1 -1</Voices></Bar></Bars>
+  <Voices><Voice id="0"><Beats>0 1 2 3</Beats></Voice></Voices>
+  <Beats>
+    <Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat>
+    <Beat id="1"><Rhythm ref="0"/><Notes>1</Notes></Beat>
+    <Beat id="2"><Rhythm ref="0"/><Notes>2</Notes></Beat>
+    <Beat id="3"><Rhythm ref="0"/><Notes>3</Notes>
+      <Properties>
+        <Property name="VibratoWTremBar"><Strength>Wide</Strength></Property>
+      </Properties>
+    </Beat>
+  </Beats>
+  <Notes>
+    <Note id="0">
+      <Properties>
+        <Property name="String"><String>0</String></Property>
+        <Property name="Fret"><Fret>5</Fret></Property>
+      </Properties>
+      <Vibrato>Slight</Vibrato>
+    </Note>
+    <Note id="1">
+      <Properties>
+        <Property name="String"><String>0</String></Property>
+        <Property name="Fret"><Fret>7</Fret></Property>
+      </Properties>
+      <Vibrato>Wide</Vibrato>
+    </Note>
+    <Note id="2">
+      <Properties>
+        <Property name="String"><String>0</String></Property>
+        <Property name="Fret"><Fret>9</Fret></Property>
+      </Properties>
+      <Vibrato/>
+    </Note>
+    <Note id="3">
+      <Properties>
+        <Property name="String"><String>0</String></Property>
+        <Property name="Fret"><Fret>12</Fret></Property>
+      </Properties>
+    </Note>
+  </Notes>
+  <Rhythms><Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm></Rhythms>
+</GPIF>
+''';
+    final beats = parseGpif(
+      Uint8List.fromList(utf8.encode(gpif)),
+    ).tracks[0].measures[0].voices[0].beats;
+
+    expect(beats[0].notes.single.effect.vibrato, VibratoKind.slight);
+    expect(beats[1].notes.single.effect.vibrato, VibratoKind.wide);
+    // An unlabelled <Vibrato/> is Guitar Pro's plain `~`.
+    expect(beats[2].notes.single.effect.vibrato, VibratoKind.slight);
+    // The bar vibrato is a BEAT effect and leaves the note's own alone.
+    expect(beats[3].notes.single.effect.vibrato, VibratoKind.none);
+    expect(beats[3].effect.vibrato, VibratoKind.wide);
+    expect(beats[0].effect.vibrato, VibratoKind.none);
+  });
+
+  test('a MasterTrack <Anacrusis/> shortens the first (pickup) bar', () {
+    // GP7/8 flags the pickup once, on the MasterTrack; the bar itself keeps
+    // its notated 4/4 even though only a half note fills it.
+    const gpif = '''
+<?xml version="1.0" encoding="utf-8"?>
+<GPIF>
+  <GPVersion>7.6.0</GPVersion>
+  <MasterTrack><Tracks>0</Tracks><Anacrusis /></MasterTrack>
+  <Tracks><Track id="0"><Name><![CDATA[Guitar]]></Name><Staves><Staff>
+    <Properties>
+      <Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+    </Properties>
+  </Staff></Staves></Track></Tracks>
+  <MasterBars>
+    <MasterBar><Time>4/4</Time><Bars>0</Bars></MasterBar>
+    <MasterBar><Time>4/4</Time><Bars>1</Bars></MasterBar>
+  </MasterBars>
+  <Bars>
+    <Bar id="0"><Voices>0 -1 -1 -1</Voices></Bar>
+    <Bar id="1"><Voices>1 -1 -1 -1</Voices></Bar>
+  </Bars>
+  <Voices>
+    <Voice id="0"><Beats>0</Beats></Voice>
+    <Voice id="1"><Beats>1</Beats></Voice>
+  </Voices>
+  <Beats>
+    <Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat>
+    <Beat id="1"><Rhythm ref="1"/><Notes>0</Notes></Beat>
+  </Beats>
+  <Notes>
+    <Note id="0"><Properties>
+      <Property name="Fret"><Fret>0</Fret></Property>
+      <Property name="String"><String>4</String></Property>
+    </Properties></Note>
+  </Notes>
+  <Rhythms>
+    <Rhythm id="0"><NoteValue>Half</NoteValue></Rhythm>
+    <Rhythm id="1"><NoteValue>Whole</NoteValue></Rhythm>
+  </Rhythms>
+</GPIF>
+''';
+    final song = parseGp(zipGp(gpif));
+    // The pickup lasts as long as its content (a half note), not 4/4 …
+    expect(song.measureHeaders[0].length, 2 * q);
+    expect(song.measureHeaders[0].timeSignature.numerator, 2);
+    // … so bar 2 follows right after it instead of two beats late.
+    expect(song.measureHeaders[1].start, q + 2 * q);
+    expect(song.measureHeaders[1].length, 4 * q);
+    expect(song.tracks[0].measures[1].voices[0].beats.single.start, q + 2 * q);
   });
 
   test('parseGpif reads bare score.gpif XML', () {

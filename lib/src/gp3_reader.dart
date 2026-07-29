@@ -375,8 +375,10 @@ class GP3File extends GpByteReader {
   BeatEffect readBeatEffects(NoteEffect noteEffect) {
     final beatEffects = BeatEffect();
     final flags1 = readU8();
-    noteEffect.vibrato = (flags1 & 0x01 != 0) || noteEffect.vibrato;
-    beatEffects.vibrato = (flags1 & 0x02 != 0) || beatEffects.vibrato;
+    // 0x01 = the plain `~` on every note of the beat, 0x02 = the beat's
+    // trem-bar ("wide") vibrato. Neither flag carries a strength of its own.
+    if (flags1 & 0x01 != 0) noteEffect.vibrato = VibratoKind.slight;
+    if (flags1 & 0x02 != 0) beatEffects.vibrato = VibratoKind.wide;
     beatEffects.fadeIn = flags1 & 0x10 != 0;
     if (flags1 & 0x20 != 0) {
       final flags2 = readU8();

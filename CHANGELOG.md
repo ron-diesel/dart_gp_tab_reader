@@ -1,3 +1,25 @@
+## 0.4.0
+
+- **Vibrato keeps its written width.** `NoteEffect.vibrato` and
+  `BeatEffect.vibrato` changed from `bool` to the new `VibratoKind`
+  (`none` / `slight` / `wide`) — BREAKING for anyone reading those fields.
+  GP6/7/8 write the width out (`<Vibrato>Slight</Vibrato>` /
+  `<Vibrato>Wide</Vibrato>`, and `<Strength>` inside the beat's
+  `VibratoWTremBar` property) and it was thrown away: every vibrato read as
+  one undifferentiated flag. The GP3-5 binaries have no strength byte, so
+  their note flag reads as `slight` and their beat flag — the trem-bar
+  vibrato — as `wide`, which is what those flags mean.
+- `BeatEffect.vibrato` is now documented for what it is: vibrato played with
+  the TREMOLO BAR across the whole beat, not the fretting hand's `~`
+  (`NoteEffect.vibrato`).
+- GPIF reader: **the pickup (anacrusis) bar is no longer timed as a full one.**
+  GP7/8 flags it once on the `<MasterTrack>` (`<Anacrusis/>`), meaning "the
+  first bar is a pickup"; the reader only looked for the flag inside a
+  `<MasterBar>` (where older writers put it), so a half-note pickup notated in
+  4/4 kept the full four beats. Everything after the pickup was pushed late by
+  the unplayed rest — a two-beat gap after the intro note, and a bar grid
+  offset from the music for the whole song.
+
 ## 0.3.4
 
 - GPIF reader: **mid-bar automations are no longer dropped.** An

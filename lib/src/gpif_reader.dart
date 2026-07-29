@@ -168,6 +168,14 @@ class _GpifReader {
               const <XmlElement>[])
         _readMasterBar(mb),
     ];
+    // GP7/8 flags a pickup measure once, on the MasterTrack — it always means
+    // the FIRST bar. (Older writers put an <Anacrusis/> inside the MasterBar
+    // itself; [_readMasterBar] picks that up.) Without this the pickup bar is
+    // timed as a full one and every later measure drifts by the unfilled rest.
+    if (masterBars.isNotEmpty &&
+        root.getElement('MasterTrack')?.getElement('Anacrusis') != null) {
+      masterBars.first.isAnacrusis = true;
+    }
 
     // Tempo automations per master-bar index. Automations attached to a
     // MasterBar directly (some writers do that) already know their bar.
@@ -619,8 +627,10 @@ class _GpifReader {
       double propFloat() =>
           double.tryParse(_text(prop.getElement('Float'))) ?? 0;
       switch (prop.getAttribute('name')) {
+        // Trem-bar vibrato — the whole beat wobbles on the bar, with its own
+        // `<Strength>Slight|Wide</Strength>`.
         case 'VibratoWTremBar':
-          beat.effect.vibrato = true;
+          beat.effect.vibrato = _vibratoKind(_text(prop.getElement('Strength')));
         case 'Slapped':
           if (prop.getElement('Enable') != null) {
             beat.effect.slapEffect = SlapEffect.slapping;
@@ -852,8 +862,10 @@ class _GpifReader {
           if (child.getAttribute('destination') == 'true') {
             note.type = NoteType.tie;
           }
+        // `<Vibrato>Slight</Vibrato>` / `<Vibrato>Wide</Vibrato>` — the
+        // fretting hand's shake, whose width GP7/8 writes out in full.
         case 'Vibrato':
-          note.effect.vibrato = true;
+          note.effect.vibrato = _vibratoKind(_text(child));
         case 'LetRing':
           note.effect.letRing = true;
         case 'AntiAccent':
@@ -976,6 +988,13 @@ class _GpifReader {
         'semi' || 'feedback' => const SemiHarmonic(),
         _ => NaturalHarmonic(harmonicFret),
       };
+
+  /// The written width of a vibrato: `Wide` for the exaggerated wobble,
+  /// [VibratoKind.slight] for `Slight` and for anything unlabelled (older
+  /// GPIF writers emit a bare `<Vibrato/>`, which in Guitar Pro is the plain
+  /// `~`). Matched case-insensitively like the other GPIF enums.
+  VibratoKind _vibratoKind(String value) =>
+      value.toLowerCase() == 'wide' ? VibratoKind.wide : VibratoKind.slight;
 
   /// GPIF dynamic marks to MIDI velocity, on the same ppp..fff ladder the
   /// GP3-5 readers use.

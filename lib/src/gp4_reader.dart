@@ -92,7 +92,9 @@ class GP4File extends GP3File {
     final beatEffect = BeatEffect();
     final flags1 = readI8();
     final flags2 = readI8();
-    beatEffect.vibrato = (flags1 & 0x02 != 0) || beatEffect.vibrato;
+    // The beat-level flag is the trem-bar ("wide") vibrato; the fretting-hand
+    // `~` is a note flag (see [readNoteEffects]).
+    if (flags1 & 0x02 != 0) beatEffect.vibrato = VibratoKind.wide;
     beatEffect.fadeIn = flags1 & 0x10 != 0;
     if (flags1 & 0x20 != 0) {
       beatEffect.slapEffect = SlapEffect.fromValue(readI8());
@@ -148,7 +150,8 @@ class GP4File extends GP3File {
     noteEffect.letRing = flags1 & 0x08 != 0;
     noteEffect.staccato = flags2 & 0x01 != 0;
     noteEffect.palmMute = flags2 & 0x02 != 0;
-    noteEffect.vibrato = (flags2 & 0x40 != 0) || noteEffect.vibrato;
+    // GP4/5 binaries have no strength on the note flag — it is the plain `~`.
+    if (flags2 & 0x40 != 0) noteEffect.vibrato = VibratoKind.slight;
     if (flags1 & 0x01 != 0) noteEffect.bend = readBend();
     if (flags1 & 0x10 != 0) noteEffect.grace = readGrace();
     if (flags2 & 0x04 != 0) noteEffect.tremoloPicking = readTremoloPicking();
